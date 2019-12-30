@@ -369,7 +369,7 @@ Product {
                         cmdSize,
                         cmdObjcopyHex,
                         cmdObjcopyBin,
-                        cmdFlash // Закомметировать если не нужно шить
+                        //cmdFlash // Закомметировать если не нужно шить
                     ]
         }
     }

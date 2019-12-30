@@ -17,120 +17,135 @@ Adafruit_MCP4725 Idac;
 
 OneWire ds(2); // Объект OneWire
 
-byte gradus[8] = // кодируем символ градуса
+const char NAME[] = "LBP";
+const char DEVICE[] = "by IVAN-KLUCH";
+const char VERSION[] = "1.1 DAC";
+
+enum {
+    RelayOut = 4, // реле подаем напряжение на выход
+    Relay1 = 10, // переключение обмоток 1-е реле
+    Relay2 = 11, // переключение обмоток 2-е реле
+    Relay3 = 12, // переключение обмоток 3-е реле
+    fan = 5, // управление вентилятором
+    buzzer = 3, // сигнал спикера
+    RelayOff = A3, // сигнал автоотключения
+};
+
+struct fix_t {
+    float U = 0.0; // переменная для цифр фиксированого напряжения 1-й блок
+    uint16_t dacU = 0; // переменая значения ЦАП для напряжения 1-й блок
+    float I = 0.0; // переменная для фиксированого тока 1-й блок
+    uint16_t dacI = 0; // переменая значения ЦАП для тока 1-й блок
+} fix[5]; // 5 блоков (определение струкруры fix_t и объявление переменной fix)
+
+struct addr_t {
+    addr_t()
+        : addr {
+            sizeof(fix_t) * 0, // Начальный адресс ячейки памяти для 1-го блока
+            sizeof(fix_t) * 1, // Начальный адресс ячейки памяти для 2-го блока
+            sizeof(fix_t) * 2, // Начальный адресс ячейки памяти для 3-го блока
+            sizeof(fix_t) * 3, // Начальный адресс ячейки памяти для 4-го блока
+            sizeof(fix_t) * 4, // Начальный адресс ячейки памяти для 5-го блока};
+            sizeof(fix_t) * 5 + sizeof(int) * 0, // Начальный адресс ячейки памяти для напряжения
+            sizeof(fix_t) * 5 + sizeof(int) * 1, // Начальный адресс ячейки памяти для тока
+        }
     {
-        B01110,
-        B01010,
-        B01110,
-        B00000,
-        B00000,
-        B00000,
-        B00000,
+    }
+
+    enum : int {
+        A, // Начальный адресс ячейки памяти для 1-го блока
+        B, // Начальный адресс ячейки памяти для 2-го блока
+        C, // Начальный адресс ячейки памяти для 3-го блока
+        D, // Начальный адресс ячейки памяти для 4-го блока
+        E, // Начальный адресс ячейки памяти для 5-го блока
+
+        U, // Начальный адресс ячейки памяти для напряжения
+        I, // Начальный адресс ячейки памяти для тока
     };
 
-#define NAME "LBP"
-#define DEVICE "by IVAN-KLUCH"
-#define VERSION "1.1 DAC"
-#define RelayOut 4 // реле подаем напряжение на выход
-#define Relay1 10 // переключение обмоток 1-е реле
-#define Relay2 11 // переключение обмоток 2-е реле
-#define Relay3 12 // переключение обмоток 3-е реле
-#define fan 5 // управление вентилятором
-#define buzzer 3 // сигнал спикера
-#define RelayOff A3 // сигнал автоотключения
+    const uint16_t addr[I + 1];
 
-int addressU = 0; // Начальный адресс ячейки памяти для напряжения
-int addressI = 2; // Начальный адресс ячейки памяти для тока
+    inline int operator[](uint8_t a) { return addr[a]; }
+} Address;
 
-int adr_A_Uout = 4; // Начальный адресс ячейки памяти для цифр напряжения (переменная float) 1-й блок
-int adr_A_Udac = 8; // Начальный адресс ячейки памяти для значения ЦАП напряжения (переменная int) 1-й блок
-int adr_A_Iout = 10; // Начальный адресс ячейки памяти для цифр тока (переменная float) 1-й блок
-int adr_A_Idac = 14; // Начальный адресс ячейки памяти для значения ЦАП тока (переменная int) 1-й блок
+struct {
+    float U = 0; // переменная для вывода на дисплей напряжения (при выборе фиксированных значений)
+    float I = 0; // переменная для вывода на дисплей тока (при выборе фиксированных значений)
+} Preset;
 
-int adr_B_Uout = 16; // Начальный адресс ячейки памяти для цифр напряжения (переменная float) 2-й блок
-int adr_B_Udac = 20; // Начальный адресс ячейки памяти для значения ЦАП напряжения (переменная int) 2-й блок
-int adr_B_Iout = 22; // Начальный адресс ячейки памяти для цифр тока (переменная float) 2-й блок
-int adr_B_Idac = 26; // Начальный адресс ячейки памяти для значения ЦАП тока (переменная int) 2-й блок
+struct dac_t {
+    enum : int {
+        MaxU = 4052, // максимальное значение
+        MinU = 10, // минимальное значение
+        MaxI = 4070, // максимальное значение (ток)
+        MinI = 10, // минимальное значение  (ток)
+    };
+    uint16_t voltage = 0; // установка напряжения, отсчет в диапазоне 0-4095
+    uint16_t current = 0; //установка тока, отсчет в диапазоне 0-4095
+} Dac;
 
-int adr_C_Uout = 28; // Начальный адресс ячейки памяти для цифр напряжения (переменная float) 3-й блок
-int adr_C_Udac = 32; // Начальный адресс ячейки памяти для значения ЦАП напряжения (переменная int) 3-й блок
-int adr_C_Iout = 34; // Начальный адресс ячейки памяти для цифр тока (переменная float) 3-й блок
-int adr_C_Idac = 38; // Начальный адресс ячейки памяти для значения ЦАП тока (переменная int) 3-й блок
+struct Freq {
+    enum : int {
+        sw = 2000, // часота тона при нажатии кнопок
+        alarm = 1500, // частота тона, сигнал тревоги  sw = 20, // длительность тона при нажатии кнопок
+    };
+};
 
-int adr_D_Uout = 40; // Начальный адресс ячейки памяти для цифр напряжения (переменная float) 4-й блок
-int adr_D_Udac = 44; // Начальный адресс ячейки памяти для значения ЦАП напряжения (переменная int) 4-й блок
-int adr_D_Iout = 46; // Начальный адресс ячейки памяти для цифр тока (переменная float) 4-й блок
-int adr_D_Idac = 50; // Начальный адресс ячейки памяти для значения ЦАП тока (переменная int) 4-й блок
+struct Time {
+    enum : int {
+        sw = 20, // длительность тона при нажатии кнопок
+        alarm = 500, // длительность тона, сигнал тревоги
+    };
+};
 
-int adr_E_Uout = 52; // Начальный адресс ячейки памяти для цифр напряжения (переменная float) 5-й блок
-int adr_E_Udac = 56; // Начальный адресс ячейки памяти для значения ЦАП напряжения (переменная int) 5-й блок
-int adr_E_Iout = 58; // Начальный адресс ячейки памяти для цифр тока (переменная float) 5-й блок
-int adr_E_Idac = 62; // Начальный адресс ячейки памяти для значения ЦАП тока (переменная int) 5-й блок
+struct timer_t {
+    enum : int { off_set = 30 };
+    uint8_t off;
+} Timer;
 
-float Ufix_A = 0.0; // переменная для цифр фиксированого напряжения 1-й блок
-int Ufix_dac_A = 0; // переменая значения ЦАП для напряжения 1-й блок
-float Ifix_A = 0.0; // переменная для фиксированого тока 1-й блок
-int Ifix_dac_A = 0; // переменая значения ЦАП для тока 1-й блок
-
-float Ufix_B = 0.0; // переменная для цифр фиксированого напряжения 2-й блок
-int Ufix_dac_B = 0; // переменая значения ЦАП для напряжения 2-й блок
-float Ifix_B = 0.0; // переменная для фиксированого тока 2-й блок
-int Ifix_dac_B = 0; // переменая значения ЦАП для тока 2-й блок
-
-float Ufix_C = 0.0; // переменная для цифр фиксированого напряжения 3-й блок
-int Ufix_dac_C = 0; // переменая значения ЦАП для напряжения 3-й блок
-float Ifix_C = 0.0; // переменная для фиксированого тока 3-й блок
-int Ifix_dac_C = 0; // переменая значения ЦАП для тока 3-й блок
-
-float Ufix_D = 0.0; // переменная для цифр фиксированого напряжения 4-й блок
-int Ufix_dac_D = 0; // переменая значения ЦАП для напряжения 4-й блок
-float Ifix_D = 0.0; // переменная для фиксированого тока 4-й блок
-int Ifix_dac_D = 0; // переменая значения ЦАП для тока 4-й блок
-
-float Ufix_E = 0.0; // переменная для цифр фиксированого напряжения 5-й блок
-int Ufix_dac_E = 0; // переменая значения ЦАП для напряжения 5-й блок
-float Ifix_E = 0.0; // переменная для фиксированого тока 5-й блок
-int Ifix_dac_E = 0; // переменая значения ЦАП для тока 5-й блок
-
-float U_Preset = 0; // переменная для вывода на дисплей напряжения (при выборе фиксированных значений)
-float I_Preset = 0; // переменная для вывода на дисплей тока (при выборе фиксированных значений)
+const uint8_t gradus[8] {
+    // кодируем символ градуса
+    B01110,
+    B01010,
+    B01110,
+    B00000,
+    B00000,
+    B00000,
+    B00000,
+};
 
 int temperature = 0; // переменная для хранения значение температуры с датчика DS18B20
 long lastUpdateTime = 0; // Переменная для хранения времени последнего считывания с датчика
+
 const int TEMP_UPDATE_TIME = 1000; // Определяем периодичность проверок
 const int VOLTAGE = A0;
 const int CURRENT = A6;
-float CoefU = 7.921; // коэффициент делителя напряжения CoefU=Uout(max)/5v.опорное
-float CoefI = 0.838; // коэффициент делителя тока CoefI=Iout/5v опорное
-float Uout = 0;
+
+const float CoefI = 0.838; // коэффициент делителя тока CoefI=Iout/5v опорное
+const float CoefU = 7.921; // коэффициент делителя напряжения CoefU=Uout(max)/5v.опорное
+const float Ref_vol = 5.05; // опорное напряжение
+const float U_relay_off = 19.5; // напряжение отключения реле (переключение обмоток)
+const float U_relay_on = 20.0; // напряжение включения реле (переключение обмоток)
+
 float Iout = 0;
-float Ucorr = 0;
 float Ucalc = 0;
-float U_relay_on = 20.0; // напряжение включения реле (переключение обмоток)
-float U_relay_off = 19.5; // напряжение отключения реле (переключение обмоток)
-float Ref_vol = 5.05; // опорное напряжение
+float Ucorr = 0;
+float Uout = 0;
+
 //float set_Iout = 0;
-int VOLTAGE_DAC = 0; // установка напряжения, отсчет в диапазоне 0-4095
-int CURRENT_DAC = 0; //установка тока, отсчет в диапазоне 0-4095
-float CURRENT_SET = 0; // переменная установленного тока
-int value_max = 4052; // максимальное значение
-int value_min = 10; // минимальное значение
-int value_max_I = 4070; // максимальное значение (ток)
-int value_min_I = 10; // минимальное значение  (ток)
+
+float CurrentSet = 0; // переменная установленного тока
+
 int set = 0; // пункты меню
 int menu = 0; // меню
-int preset_select = 1; // блоки фикированных напряжений
+uint8_t preset_select = addr_t::A; // блоки фикированных напряжений
 int set_fix_val = 0; // настройка фиксированных значений
 int output_control = 0; // управление выходом БП
 unsigned long store_exit_time; // храним врема выхода из меню
 const int exit_time = 4000; // устанавливаем время выхода из меню
-word freq_sw = 2000; // часота тона при нажатии кнопок
-word freq_alarm = 1500; // частота тона, сигнал тревоги
-word time_sw = 20; // длительность тона при нажатии кнопок
-word time_alarm = 500; // длительность тона, сигнал тревоги
-byte timer_off;
-byte timer_off_set = 30;
+
 //byte var = 0;
+
 unsigned long store_countdown_timer; // храним время автоотключения
 const int countdown_timer = 10; // устанавливаем время автоотключения в минутах
 unsigned long store_shutdown_time; // храним время обратного отсчета
@@ -159,7 +174,7 @@ void setup()
 
     lcd.init();
     lcd.backlight(); // Включаем подсветку дисплея
-    lcd.createChar(1, gradus); // Создаем символ под номером 1
+    lcd.createChar(1, const_cast<uint8_t*>(gradus)); // Создаем символ под номером 1
     lcd.setCursor(6, 0);
     lcd.print(NAME);
     lcd.setCursor(1, 1);
@@ -175,8 +190,8 @@ void setup()
     Serial.begin(115200);
     analogReference(EXTERNAL); // опорное напряжение
     // Чтение данных из EEPROM
-    EEPROM.get(addressU, VOLTAGE_DAC);
-    EEPROM.get(addressI, CURRENT_DAC);
+    EEPROM.get(Address[addr_t::U], Dac.voltage);
+    EEPROM.get(Address[addr_t::I], Dac.current);
 
     pinMode(RelayOut, OUTPUT);
     pinMode(Relay1, OUTPUT);
@@ -186,8 +201,8 @@ void setup()
     pinMode(RelayOff, OUTPUT);
     Udac.begin(0x60);
     Idac.begin(0x61);
-    Udac.setVoltage(VOLTAGE_DAC, false); // даем команду цап, устанавливаем напряжение
-    Idac.setVoltage(CURRENT_DAC, false); // даем команду цап, устанавливаем ток
+    Udac.setVoltage(Dac.voltage, false); // даем команду цап, устанавливаем напряжение
+    Idac.setVoltage(Dac.current, false); // даем команду цап, устанавливаем ток
 
     button1.attachClick(click1);
     button1.attachDuringLongPress(longPress1);
@@ -202,7 +217,7 @@ void setup()
     button4.attachClick(click4);
     button4.attachDuringLongPress(longPress4);
 
-    timer_off = timer_off_set; // обратный отсчет устанавливаем в начало
+    Timer.off = timer_t::off_set; // обратный отсчет устанавливаем в начало
     digitalWrite(RelayOff, 1);
 } //конец setup
 
@@ -234,14 +249,14 @@ void loop()
     if (millis() - store_exit_time > exit_time && set == 1 && set != 4) {
         set = 0;
         lcd.clear();
-        EEPROM.put(addressU, VOLTAGE_DAC); // Запись напряжения в память
+        EEPROM.put(Address[addr_t::U], Dac.voltage); // Запись напряжения в память
     }
     //------------------- запись в помять напряжения и тока -----------------
     if (millis() - store_exit_time > exit_time && set == 2 && set != 4) {
         set = 0;
         lcd.clear();
-        EEPROM.put(addressU, VOLTAGE_DAC); // Запись напряжения в память
-        EEPROM.put(addressI, CURRENT_DAC); // Запись тока в память
+        EEPROM.put(Address[addr_t::U], Dac.voltage); // Запись напряжения в память
+        EEPROM.put(Address[addr_t::I], Dac.current); // Запись тока в память
     }
     //--------------------считаем напряжение и ток--------------------------
     Ucalc = analogRead(VOLTAGE) * (Ref_vol / 1023.0) * CoefU; //узнаем напряжение на выходе
@@ -249,7 +264,7 @@ void loop()
     Uout = Ucalc + Ucorr;
     Iout = analogRead(CURRENT) * (Ref_vol / 1023.0) * CoefI; // узнаем ток в нагрузке
 
-    CURRENT_SET = Ref_vol / value_max_I * CoefI * CURRENT_DAC; // в этой строке считаем какой ток установлен на выходе
+    CurrentSet = Ref_vol / dac_t::MaxI * CoefI * Dac.current; // в этой строке считаем какой ток установлен на выходе
 
     //--------------действия при высокой температуре радиатора---------
     if (temperature >= 35)
@@ -267,15 +282,15 @@ void loop()
     if (Uout <= U_relay_off)
         digitalWrite(Relay1, 0);
 
-    if (VOLTAGE_DAC >= value_max)
-        VOLTAGE_DAC = value_max; //не выходим за приделы максимума
-    if (VOLTAGE_DAC <= value_min)
-        VOLTAGE_DAC = value_min; //не выходим за приделы минимума
+    if (Dac.voltage >= dac_t::MaxU)
+        Dac.voltage = dac_t::MaxU; //не выходим за приделы максимума
+    if (Dac.voltage <= dac_t::MinU)
+        Dac.voltage = dac_t::MinU; //не выходим за приделы минимума
 
-    if (CURRENT_DAC >= value_max_I)
-        CURRENT_DAC = value_max_I; //не выходим за приделы максимума
-    if (CURRENT_DAC <= value_min_I)
-        CURRENT_DAC = value_min_I; //не выходим за приделы минимума
+    if (Dac.current >= dac_t::MaxI)
+        Dac.current = dac_t::MaxI; //не выходим за приделы максимума
+    if (Dac.current <= dac_t::MinI)
+        Dac.current = dac_t::MinI; //не выходим за приделы минимума
     //----------------выводим информацию на дисплей--------------------
     if (menu == 0) {
         lcd.setCursor(0, 0);
@@ -295,7 +310,7 @@ void loop()
         lcd.print(Uout, 2);
         lcd.print(" V");
         lcd.setCursor(9, 0);
-        lcd.print(CURRENT_SET, 2);
+        lcd.print(CurrentSet, 2);
         lcd.print(" A ");
     }
     if (menu == 1 && set_fix_val == 1) {
@@ -308,9 +323,9 @@ void loop()
     }
     if (menu == 1) {
         lcd.setCursor(15, 1);
-        lcd.print(preset_select);
+        lcd.print(preset_select + 1);
     }
-    if (set == 0 && timer_off == timer_off_set && menu == 0) {
+    if (set == 0 && Timer.off == timer_t::off_set && menu == 0) {
         lcd.setCursor(9, 1);
         lcd.print("t ");
         lcd.print(temperature);
@@ -335,7 +350,7 @@ void loop()
         lcd.setCursor(0, 1);
         lcd.print("CURRENT");
         lcd.setCursor(9, 1);
-        lcd.print(CURRENT_SET, 2);
+        lcd.print(CurrentSet, 2);
         lcd.print(" A ");
     }
     if (menu == 1 && set_fix_val == 0) {
@@ -344,7 +359,7 @@ void loop()
     if (menu == 1 && set_fix_val == 3) {
         for (int i = 0; i <= 9; i++) {
             Serial.println(i);
-            tone(buzzer, freq_alarm, time_alarm);
+            tone(buzzer, Freq::alarm, Time::alarm);
             record_fixed_values();
         }
         set_fix_val = 0;
@@ -365,31 +380,31 @@ void click1()
 {
     if (menu == 0 && set == 0 || set == 1) {
         set = 1;
-        if (VOLTAGE_DAC < value_max)
-            VOLTAGE_DAC = VOLTAGE_DAC + 2; //добавляем
-        Udac.setVoltage(VOLTAGE_DAC, false); // даем команду цап, устанавливаем напряжение
+        if (Dac.voltage < dac_t::MaxU)
+            Dac.voltage = Dac.voltage + 2; //добавляем
+        Udac.setVoltage(Dac.voltage, false); // даем команду цап, устанавливаем напряжение
     }
     if (set == 2 && menu == 0) {
-        if (CURRENT_DAC < value_max)
-            CURRENT_DAC = CURRENT_DAC + 10;
-        Idac.setVoltage(CURRENT_DAC, false);
+        if (Dac.current < dac_t::MaxU)
+            Dac.current = Dac.current + 10;
+        Idac.setVoltage(Dac.current, false);
     }
     if (menu == 1 && set_fix_val == 0) { // переключаем блоки фиксированных значений +
-        preset_select = preset_select + 1;
-        if (preset_select == 6)
-            preset_select = 1;
+        ++preset_select;
+        if (preset_select == addr_t::E)
+            preset_select = 0;
     }
     if (menu == 1 && set_fix_val == 1) {
-        if (VOLTAGE_DAC < value_max)
-            VOLTAGE_DAC = VOLTAGE_DAC + 2; //добавляем
-        Udac.setVoltage(VOLTAGE_DAC, false); // даем команду цап, устанавливаем напряжение
+        if (Dac.voltage < dac_t::MaxU)
+            Dac.voltage = Dac.voltage + 2; //добавляем
+        Udac.setVoltage(Dac.voltage, false); // даем команду цап, устанавливаем напряжение
     }
     if (menu == 1 && set_fix_val == 2) {
-        if (CURRENT_DAC < value_max)
-            CURRENT_DAC = CURRENT_DAC + 10;
-        Idac.setVoltage(CURRENT_DAC, false);
+        if (Dac.current < dac_t::MaxU)
+            Dac.current = Dac.current + 10;
+        Idac.setVoltage(Dac.current, false);
     }
-    tone(buzzer, freq_sw, time_sw); // сигнал спикера
+    tone(buzzer, Freq::sw, Time::sw); // сигнал спикера
     store_exit_time = millis();
     cancel_auto_off();
 } //конец click1()
@@ -398,31 +413,31 @@ void longPress1()
 {
     if (menu == 0 && set == 0 || set == 1) {
         set = 1;
-        if (VOLTAGE_DAC > 200) {
-            VOLTAGE_DAC = VOLTAGE_DAC + 10; //убавляем
+        if (Dac.voltage > 200) {
+            Dac.voltage = Dac.voltage + 10; //убавляем
         }
-        if (VOLTAGE_DAC <= 200) {
-            VOLTAGE_DAC = VOLTAGE_DAC + 4; //убавляем
+        if (Dac.voltage <= 200) {
+            Dac.voltage = Dac.voltage + 4; //убавляем
         }
-        Udac.setVoltage(VOLTAGE_DAC, false); // даем команду цап, устанавливаем напряжение
+        Udac.setVoltage(Dac.voltage, false); // даем команду цап, устанавливаем напряжение
     }
     if (menu == 0 && set == 2) {
-        if (CURRENT_DAC < value_max)
-            CURRENT_DAC = CURRENT_DAC + 30;
-        Idac.setVoltage(CURRENT_DAC, false);
+        if (Dac.current < dac_t::MaxU)
+            Dac.current = Dac.current + 30;
+        Idac.setVoltage(Dac.current, false);
     }
-    if (menu == 1 && set_fix_val == 1 && VOLTAGE_DAC > 200) {
-        VOLTAGE_DAC = VOLTAGE_DAC + 10; //добавляем
-        Udac.setVoltage(VOLTAGE_DAC, false); // даем команду цап, устанавливаем напряжение
+    if (menu == 1 && set_fix_val == 1 && Dac.voltage > 200) {
+        Dac.voltage = Dac.voltage + 10; //добавляем
+        Udac.setVoltage(Dac.voltage, false); // даем команду цап, устанавливаем напряжение
     }
-    if (menu == 1 && set_fix_val == 1 && VOLTAGE_DAC <= 200) {
-        VOLTAGE_DAC = VOLTAGE_DAC + 4; //добавляем
-        Udac.setVoltage(VOLTAGE_DAC, false); // даем команду цап, устанавливаем напряжение
+    if (menu == 1 && set_fix_val == 1 && Dac.voltage <= 200) {
+        Dac.voltage = Dac.voltage + 4; //добавляем
+        Udac.setVoltage(Dac.voltage, false); // даем команду цап, устанавливаем напряжение
     }
     if (menu == 1 && set_fix_val == 2) {
-        if (CURRENT_DAC < value_max)
-            CURRENT_DAC = CURRENT_DAC + 30;
-        Idac.setVoltage(CURRENT_DAC, false);
+        if (Dac.current < dac_t::MaxU)
+            Dac.current = Dac.current + 30;
+        Idac.setVoltage(Dac.current, false);
     }
     store_exit_time = millis();
     cancel_auto_off();
@@ -430,35 +445,35 @@ void longPress1()
 //---------------функции для кнопки минус (один клик)--------------------
 void click2()
 {
-    tone(buzzer, freq_sw, time_sw);
+    tone(buzzer, Freq::sw, Time::sw);
     if (menu == 0 && set == 0 || set == 1) {
         set = 1;
-        if (VOLTAGE_DAC > value_min)
-            VOLTAGE_DAC = VOLTAGE_DAC - 2; //убавляем
+        if (Dac.voltage > dac_t::MinU)
+            Dac.voltage = Dac.voltage - 2; //убавляем
         store_exit_time = millis();
-        Udac.setVoltage(VOLTAGE_DAC, false); // даем команду цап, устанавливаем напряжение
+        Udac.setVoltage(Dac.voltage, false); // даем команду цап, устанавливаем напряжение
     }
     if (set == 2 && menu == 0) {
-        if (CURRENT_DAC > value_min)
-            CURRENT_DAC = CURRENT_DAC - 10; //убавляем
-        Idac.setVoltage(CURRENT_DAC, false);
+        if (Dac.current > dac_t::MinU)
+            Dac.current = Dac.current - 10; //убавляем
+        Idac.setVoltage(Dac.current, false);
     }
     if (menu == 1 && set_fix_val == 0) { // переключаем блоки фиксированных значений -
-        preset_select = preset_select - 1;
-        if (preset_select == 0)
-            preset_select = 5;
+        --preset_select;
+        if (preset_select > addr_t::E)
+            preset_select = addr_t::E;
     }
 
     if (menu == 1 && set_fix_val == 1) {
-        if (VOLTAGE_DAC > value_min)
-            VOLTAGE_DAC = VOLTAGE_DAC - 2; //убавляем
-        Udac.setVoltage(VOLTAGE_DAC, false); // даем команду цап, устанавливаем напряжение
-        //Ufix_dac_A = VOLTAGE_DAC;
+        if (Dac.voltage > dac_t::MinU)
+            Dac.voltage = Dac.voltage - 2; //убавляем
+        Udac.setVoltage(Dac.voltage, false); // даем команду цап, устанавливаем напряжение
+        //fix[Fix::A].dacU = Dac.VOLTAGE;
     }
     if (menu == 1 && set_fix_val == 2) {
-        if (CURRENT_DAC > value_min)
-            CURRENT_DAC = CURRENT_DAC - 10; //убавляем
-        Idac.setVoltage(CURRENT_DAC, false);
+        if (Dac.current > dac_t::MinU)
+            Dac.current = Dac.current - 10; //убавляем
+        Idac.setVoltage(Dac.current, false);
     }
     store_exit_time = millis();
     cancel_auto_off();
@@ -468,31 +483,31 @@ void longPress2()
 {
     if (menu == 0 && set == 0 || set == 1) {
         set = 1;
-        if (VOLTAGE_DAC > 200) {
-            VOLTAGE_DAC = VOLTAGE_DAC - 10; //убавляем
+        if (Dac.voltage > 200) {
+            Dac.voltage = Dac.voltage - 10; //убавляем
         }
-        if (VOLTAGE_DAC <= 200) {
-            VOLTAGE_DAC = VOLTAGE_DAC - 4; //убавляем
+        if (Dac.voltage <= 200) {
+            Dac.voltage = Dac.voltage - 4; //убавляем
         }
-        Udac.setVoltage(VOLTAGE_DAC, false); // даем команду цап, устанавливаем напряжение
+        Udac.setVoltage(Dac.voltage, false); // даем команду цап, устанавливаем напряжение
     }
     if (menu == 0 && set == 2) {
-        if (CURRENT_DAC > value_min)
-            CURRENT_DAC = CURRENT_DAC - 30; //убавляем
-        Idac.setVoltage(CURRENT_DAC, false);
+        if (Dac.current > dac_t::MinU)
+            Dac.current = Dac.current - 30; //убавляем
+        Idac.setVoltage(Dac.current, false);
     }
-    if (menu == 1 && set_fix_val == 1 && VOLTAGE_DAC > 200) {
-        VOLTAGE_DAC = VOLTAGE_DAC - 10; //убавляем
-        Udac.setVoltage(VOLTAGE_DAC, false); // даем команду цап, устанавливаем напряжение
+    if (menu == 1 && set_fix_val == 1 && Dac.voltage > 200) {
+        Dac.voltage = Dac.voltage - 10; //убавляем
+        Udac.setVoltage(Dac.voltage, false); // даем команду цап, устанавливаем напряжение
     }
-    if (menu == 1 && set_fix_val == 1 && VOLTAGE_DAC <= 200) {
-        VOLTAGE_DAC = VOLTAGE_DAC - 4; //убавляем
-        Udac.setVoltage(VOLTAGE_DAC, false); // даем команду цап, устанавливаем напряжение
+    if (menu == 1 && set_fix_val == 1 && Dac.voltage <= 200) {
+        Dac.voltage = Dac.voltage - 4; //убавляем
+        Udac.setVoltage(Dac.voltage, false); // даем команду цап, устанавливаем напряжение
     }
     if (menu == 1 && set_fix_val == 2) {
-        if (CURRENT_DAC > value_min)
-            CURRENT_DAC = CURRENT_DAC - 30; //убавляем
-        Idac.setVoltage(CURRENT_DAC, false);
+        if (Dac.current > dac_t::MinU)
+            Dac.current = Dac.current - 30; //убавляем
+        Idac.setVoltage(Dac.current, false);
     }
     store_exit_time = millis();
     cancel_auto_off();
@@ -500,7 +515,7 @@ void longPress2()
 //-------------------(действия для кнопки меню (один клик)---------------
 void click3()
 {
-    tone(buzzer, freq_sw, time_sw); // сигнал спикера
+    tone(buzzer, Freq::sw, Time::sw); // сигнал спикера
     if (menu == 0) {
         set = set + 1; //поочередно переключаем режим отображения информации
         if (set == 3)
@@ -523,7 +538,7 @@ void doubleclick3()
         menu = 0; //дошли до конца, начинаем снова
     store_exit_time = millis();
     cancel_auto_off();
-    tone(buzzer, freq_sw, time_sw); // сигнал спикера
+    tone(buzzer, Freq::sw, Time::sw); // сигнал спикера
     lcd.clear();
 } // конец doubleclick3
 //------------------(действия для кнопки меню (длительно нажата)-----------
@@ -536,7 +551,7 @@ void longPress3()
 //------------------(действия для кнопки отключение выхода (один клик)-------
 void click4()
 {
-    tone(buzzer, freq_sw, time_sw); // сигнал спикера
+    tone(buzzer, Freq::sw, Time::sw); // сигнал спикера
     output_control = output_control + 1;
     if (output_control == 2)
         output_control = 0;
@@ -564,7 +579,7 @@ void longPress4()
 //---------------сигнал спикера-------------
 void signal_attention()
 {
-    tone(buzzer, freq_alarm, time_alarm);
+    tone(buzzer, Freq::alarm, Time::alarm);
 }
 //------------------функции с фиксированными значениями --------------------------
 void functions_for_fixed_values()
@@ -573,129 +588,66 @@ void functions_for_fixed_values()
     lcd.setCursor(0, 1);
     lcd.print("Preset select");
     lcd.setCursor(0, 0);
-    if (U_Preset < 10)
+    if (Preset.U < 10)
         lcd.print(" ");
-    lcd.print(U_Preset);
+    lcd.print(Preset.U);
     lcd.print(" V ");
     lcd.setCursor(9, 0);
-    lcd.print(I_Preset);
+    lcd.print(Preset.I);
     lcd.print(" A");
 
-    if (preset_select == 1) {
-        EEPROM.get(adr_A_Uout, Ufix_A);
-        EEPROM.get(adr_A_Udac, Ufix_dac_A);
-        EEPROM.get(adr_A_Iout, Ifix_A);
-        EEPROM.get(adr_A_Idac, Ifix_dac_A);
-        U_Preset = Ufix_A;
-        I_Preset = Ifix_A;
-    }
-    if (preset_select == 2) {
-        EEPROM.get(adr_B_Uout, Ufix_B);
-        EEPROM.get(adr_B_Udac, Ufix_dac_B);
-        EEPROM.get(adr_B_Iout, Ifix_B);
-        EEPROM.get(adr_B_Idac, Ifix_dac_B);
-        U_Preset = Ufix_B;
-        I_Preset = Ifix_B;
-    }
-    if (preset_select == 3) {
-        EEPROM.get(adr_C_Uout, Ufix_C);
-        EEPROM.get(adr_C_Udac, Ufix_dac_C);
-        EEPROM.get(adr_C_Iout, Ifix_C);
-        EEPROM.get(adr_C_Idac, Ifix_dac_C);
-        U_Preset = Ufix_C;
-        I_Preset = Ifix_C;
-    }
-    if (preset_select == 4) {
-        EEPROM.get(adr_D_Uout, Ufix_D);
-        EEPROM.get(adr_D_Udac, Ufix_dac_D);
-        EEPROM.get(adr_D_Iout, Ifix_D);
-        EEPROM.get(adr_D_Idac, Ifix_dac_D);
-        U_Preset = Ufix_D;
-        I_Preset = Ifix_D;
-    }
-    if (preset_select == 5) {
-        EEPROM.get(adr_E_Uout, Ufix_E);
-        EEPROM.get(adr_E_Udac, Ufix_dac_E);
-        EEPROM.get(adr_E_Iout, Ifix_E);
-        EEPROM.get(adr_E_Idac, Ifix_dac_E);
-        U_Preset = Ufix_E;
-        I_Preset = Ifix_E;
-    }
+    EEPROM.get(Address[preset_select], fix[preset_select]);
+    Preset.U = fix[preset_select].U;
+    Preset.I = fix[preset_select].I;
+
+    //    if (preset_select == 1) {
+    //        EEPROM.get(Address::A_Uout, fix[Fix::A].U);
+    //        EEPROM.get(Address::A_Udac, fix[Fix::A].dacU);
+    //        EEPROM.get(Address::A_Iout, fix[Fix::A].I);
+    //        EEPROM.get(Address::A_Idac, fix[Fix::A].dacI);
+    //        Preset.U = fix[Fix::A].U;
+    //        Preset.I = fix[Fix::A].I;
+    //    }
 } // конец functions_for_fixed_values
 //------------------запись в память фиксированных значений-------------------------
 void record_fixed_values()
 {
-    if (preset_select == 1) {
-        EEPROM.put(adr_A_Uout, Uout); // Запись цифр напряжения в память 1-й блок
-        EEPROM.put(adr_A_Udac, VOLTAGE_DAC); // Запись значения ЦАП напряжения в память 1-й блок
-        EEPROM.put(adr_A_Iout, CURRENT_SET); // Запись цифр тока в память 1-й блок
-        EEPROM.put(adr_A_Idac, CURRENT_DAC); // Запись значения ЦАП тока в память 1-й блок
-    }
-    if (preset_select == 2) {
-        EEPROM.put(adr_B_Uout, Uout); // Запись цифр напряжения в память 2-й блок
-        EEPROM.put(adr_B_Udac, VOLTAGE_DAC); // Запись значения ЦАП напряжения в память 2-й блок
-        EEPROM.put(adr_B_Iout, CURRENT_SET); // Запись цифр тока в память 2-й блок
-        EEPROM.put(adr_B_Idac, CURRENT_DAC); // Запись значения ЦАП тока в память 2-й блок
-    }
-    if (preset_select == 3) {
-        EEPROM.put(adr_C_Uout, Uout); // Запись цифр напряжения в память 3-й блок
-        EEPROM.put(adr_C_Udac, VOLTAGE_DAC); // Запись значения ЦАП напряжения в память 3-й блок
-        EEPROM.put(adr_C_Iout, CURRENT_SET); // Запись цифр тока в память 3-й блок
-        EEPROM.put(adr_C_Idac, CURRENT_DAC); // Запись значения ЦАП тока в память 3-й блок
-    }
-    if (preset_select == 4) {
-        EEPROM.put(adr_D_Uout, Uout); // Запись цифр напряжения в память 4-й блок
-        EEPROM.put(adr_D_Udac, VOLTAGE_DAC); // Запись значения ЦАП напряжения в память 4-й блок
-        EEPROM.put(adr_D_Iout, CURRENT_SET); // Запись цифр тока в память 4-й блок
-        EEPROM.put(adr_D_Idac, CURRENT_DAC); // Запись значения ЦАП тока в память 4-й блок
-    }
-    if (preset_select == 5) {
-        EEPROM.put(adr_E_Uout, Uout); // Запись цифр напряжения в память 5-й блок
-        EEPROM.put(adr_E_Udac, VOLTAGE_DAC); // Запись значения ЦАП напряжения в память 5-й блок
-        EEPROM.put(adr_E_Iout, CURRENT_SET); // Запись цифр тока в память 5-й блок
-        EEPROM.put(adr_E_Idac, CURRENT_DAC); // Запись значения ЦАП тока в память 5-й блок
-    }
+    EEPROM.put(Address[preset_select], fix_t { Uout, Dac.voltage, CurrentSet, Dac.current });
+
+    //    if (preset_select == 1) {
+    //        EEPROM.put(Address::A_Uout, Uout); // Запись цифр напряжения в память 1-й блок
+    //        EEPROM.put(Address::A_Udac, Dac.VOLTAGE); // Запись значения ЦАП напряжения в память 1-й блок
+    //        EEPROM.put(Address::A_Iout, CURRENT_SET); // Запись цифр тока в память 1-й блок
+    //        EEPROM.put(Address::A_Idac, Dac.CURRENT); // Запись значения ЦАП тока в память 1-й блок
+    //    }
 } // конец record_fixed_values()
 //---------------установка одного из фиксированных значений в активное------------
 void select_fixed_value()
 {
-    if (preset_select == 1) {
-        VOLTAGE_DAC = Ufix_dac_A;
-        CURRENT_DAC = Ifix_dac_A;
-    }
-    if (preset_select == 2) {
-        VOLTAGE_DAC = Ufix_dac_B;
-        CURRENT_DAC = Ifix_dac_B;
-    }
-    if (preset_select == 3) {
-        VOLTAGE_DAC = Ufix_dac_C;
-        CURRENT_DAC = Ifix_dac_C;
-    }
-    if (preset_select == 4) {
-        VOLTAGE_DAC = Ufix_dac_D;
-        CURRENT_DAC = Ifix_dac_D;
-    }
-    if (preset_select == 5) {
-        VOLTAGE_DAC = Ufix_dac_E;
-        CURRENT_DAC = Ifix_dac_E;
-    }
-    Udac.setVoltage(VOLTAGE_DAC, false); // даем команду цап, устанавливаем напряжение
-    Idac.setVoltage(CURRENT_DAC, false); // даем команду цап, устанавливаем ток
-    EEPROM.put(addressU, VOLTAGE_DAC); // Запись напряжения в память
-    EEPROM.put(addressI, CURRENT_DAC); // Запись тока в память
+    //    if (preset_select == 1) {
+    //        Dac.VOLTAGE = fix[Fix::A].dacU;
+    //        Dac.CURRENT = fix[Fix::A].dacI;
+    //    }
+    Dac.voltage = fix[preset_select].dacU;
+    Dac.current = fix[preset_select].dacI;
+
+    Udac.setVoltage(Dac.voltage, false); // даем команду цап, устанавливаем напряжение
+    Idac.setVoltage(Dac.current, false); // даем команду цап, устанавливаем ток
+    EEPROM.put(Address[addr_t::U], Dac.voltage); // Запись напряжения в память
+    EEPROM.put(Address[addr_t::I], Dac.current); // Запись тока в память
 } // конец select_fixed_value
 
 //-------------------отмена автоотключения---------------------------
 void cancel_auto_off()
 {
     store_countdown_timer = millis(); // сброс таймера автоотключения
-    timer_off = timer_off_set; // обратный отсчет устанавливаем в начало
+    Timer.off = timer_t::off_set; // обратный отсчет устанавливаем в начало
 }
 //-------------------автоотключение, обратный отсчет-------------------
 void avto_off()
 {
     if (millis() - store_shutdown_time > shutdown_time) {
-        timer_off--;
+        Timer.off--;
         store_shutdown_time = millis();
         lcd.clear();
     }
@@ -703,12 +655,12 @@ void avto_off()
     lcd.setCursor(0, 1);
     lcd.print("Auto OFF");
     lcd.setCursor(9, 1);
-    lcd.print(timer_off);
+    lcd.print(Timer.off);
     lcd.setCursor(12, 1);
     lcd.print("sec");
 
-    if (timer_off == 1) {
-        tone(buzzer, freq_alarm, time_alarm); // сигнал спикера
+    if (Timer.off == 1) {
+        tone(buzzer, Freq::alarm, Time::alarm); // сигнал спикера
         delay(1000);
         digitalWrite(RelayOff, 0);
     }
@@ -733,5 +685,6 @@ int detectTemperature()
         temperature = (data[1] << 8) + data[0];
         temperature = temperature >> 4;
     }
+    return 0;
 }
 ///////////////////////////////////////////////////////////////////////////////////////
