@@ -2,7 +2,7 @@
 #include "EEPROM.h"
 #include "LiquidCrystal_I2C.h"
 #include "OneButton.h"
-#include "OneWire.h" //DS18B20
+#include "OneWire.h"
 #include "Wire.h"
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -31,14 +31,20 @@ enum {
     RelayOff = A3, // сигнал автоотключения
 };
 
+
 struct fix_t {
+    fix_t(){}
+    fix_t(float U, uint16_t dacU, float I, uint16_t dacI):
+    U(U),dacU(dacU),I(I),dacI(dacI){}
     float U = 0.0; // переменная для цифр фиксированого напряжения 1-й блок
     uint16_t dacU = 0; // переменая значения ЦАП для напряжения 1-й блок
     float I = 0.0; // переменная для фиксированого тока 1-й блок
     uint16_t dacI = 0; // переменая значения ЦАП для тока 1-й блок
-} fix[5]; // 5 блоков (определение струкруры fix_t и объявление переменной fix)
+};
+fix_t fix[5]; // 5 блоков (определение струкруры fix_t и объявление переменной fix)
 
-struct addr_t {
+class addr_t { 
+public:
     addr_t()
         : addr {
             sizeof(fix_t) * 0, // Начальный адресс ячейки памяти для 1-го блока
@@ -51,7 +57,6 @@ struct addr_t {
         }
     {
     }
-
     enum : int {
         A, // Начальный адресс ячейки памяти для 1-го блока
         B, // Начальный адресс ячейки памяти для 2-го блока
@@ -61,12 +66,12 @@ struct addr_t {
 
         U, // Начальный адресс ячейки памяти для напряжения
         I, // Начальный адресс ячейки памяти для тока
+        Size
     };
-
-    const uint16_t addr[I + 1];
-
-    inline int operator[](uint8_t a) { return addr[a]; }
-} Address;
+    uint16_t operator[](uint8_t a) const { return addr[a]; }
+private:
+    const uint16_t addr[Size];
+}const Address;
 
 struct {
     float U = 0; // переменная для вывода на дисплей напряжения (при выборе фиксированных значений)
